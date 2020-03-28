@@ -1,0 +1,106 @@
+service: sls-demo
+
+custom:
+  dynamodb:
+    start:
+      port: 8000
+      migrate: true # please create the tables
+      inMemory: true
+      onStart: true
+    stages: -dev
+
+provider:
+  name: aws
+  runtime: nodejs12.x
+  region: us-east-2
+  environment:
+    JOBS_TABLE: ${self:service}-${self:opt, self:provider.stage}-jobs
+  iamRoleStatements:
+    - Effect: "Allow"
+      Action:
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+      Resource: "*"
+
+plugins:
+  - serverless-offline
+  - serverless-dynamodb-local
+
+functions:
+  hello:
+    handler: handler.hello
+  jobs:
+    handler: src/jobs/handler.handler
+    events:
+      - http:
+          method: GET
+          path: /
+  listJobs:
+    handler: src/jobs/list.handler
+    events:
+      - http:
+          method: GET
+          path: /jobs
+  createJob:
+    handler: src/jobs/create.handler
+    events:
+      - http:
+          method: POST
+          path: /jobs
+  getJob:
+    handler: src/jobs/findone.handler
+    events:
+      - http:
+          method: GET
+          path: /jobs/{id}
+          request:
+            parameters:
+              id: true
+  deleteOne:
+    handler: src/jobs/deleteone.handler
+    events:
+      - http:
+          method: DELETE
+          path: /jobs/{id}
+          request:
+            parameters:
+              id: true
+  update:
+    handler: src/jobs/update.handler
+    events:
+      - http:
+          method: PUT
+          path: /jobs/{id}
+          request:
+            parameters:
+              id: true
+  query:
+    handler: src/jobs/query.handler
+    events:
+      - http:
+          method: POST
+          path: /jobs/query
+
+resources:
+  Resources:
+    JobsDynamoDBTable:
+      Type: "AWS::DynamoDB::Table"
+      Properties:
+        TableName: ${self:provider.environment.JOBS_TABLE}
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+          - AttributeName: title
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+          - AttributeName: title
+            KeyType: RANGE
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
